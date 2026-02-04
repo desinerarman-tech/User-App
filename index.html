@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Daily Task Pro</title>
+    
+    <!-- Core SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root { --bg:#0f172a; --card:rgba(30,41,59,0.95); --text:#f1f5f9; --primary:#6366f1; --success:#10b981; --danger:#ef4444; --warning:#f59e0b; }
+        body { margin:0; background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; display:flex; flex-direction:column; align-items:center; min-height:100vh; padding-bottom:90px; -webkit-tap-highlight-color: transparent; overflow-x: hidden; }
+        .con { width:100%; max-width:480px; padding:20px; box-sizing: border-box; }
+        .glass-card { background:var(--card); border:1px solid rgba(255,255,255,0.1); border-radius:20px; padding:20px; margin-bottom:15px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        .balance-amount { font-size:38px; font-weight:800; background:linear-gradient(to right,#fff,#86efac); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; width: 100%; }
+        .v-badge { background:rgba(16,185,129,0.15); color:#10b981; padding:6px 12px; border-radius:20px; font-size:12px; border:1px solid rgba(16,185,129,0.3); font-weight:700; display:flex; align-items:center; gap:5px; }
+        
+        .action-btn { width:100%; padding:16px; border-radius:14px; border:none; font-weight:700; color:white; cursor:pointer; margin-bottom:10px; font-size:16px; transition:0.2s; display:flex; align-items:center; justify-content:center; gap:8px; }
+        .btn-primary { background:var(--primary); box-shadow: 0 4px 15px rgba(99,102,241,0.3); }
+        .btn-warning { background:var(--warning); color: #000; box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3); }
+        .btn-success { background:var(--success); }
+        .btn-bonus { background: linear-gradient(45deg, #FFD700, #FFA500); color: black; box-shadow: 0 0 15px rgba(255, 215, 0, 0.5); animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
+        .action-btn:active { transform: scale(0.98); }
+        .action-btn:disabled { opacity:0.5; cursor: not-allowed; }
+
+        /* Social Grid Fix */
+        .social-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px; }
+        .social-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 15px; text-decoration: none; color: white; display: flex; flex-direction: column; align-items: center; text-align: center; transition: 0.2s; }
+        .social-card:active { transform: scale(0.95); background: rgba(255,255,255,0.1); }
+        .social-card i { font-size: 28px; margin-bottom: 8px; }
+        .social-card span { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+
+        .prog-track { width: 100%; height: 10px; background: rgba(255,255,255,0.1); border-radius: 10px; overflow: hidden; margin: 15px 0; }
+        .prog-fill { height: 100%; background: var(--primary); width: 0%; transition: 0.5s; }
+
+        /* Navbar Design */
+        .navbar { position:fixed; bottom:20px; width:90%; max-width:400px; background:rgba(30,41,59,0.95); padding:12px 0; border-radius:20px; display:flex; justify-content:space-around; border:1px solid #334155; z-index:100; backdrop-filter: blur(10px); box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+        .nav-item { background:none; border:none; color:#64748b; font-size:22px; cursor:pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; text-decoration: none; transition: 0.2s; }
+        .nav-item span { font-size: 10px; font-weight: 600; }
+        .nav-item.active { color:#10b981; transform: translateY(-2px); }
+
+        .view { display:none; animation: fadeIn 0.3s ease; } .view.active { display:block; }
+        .toast { position:fixed; top:20px; left:50%; transform:translateX(-50%); background:#0f172a; padding:12px 24px; border-radius:12px; border:1px solid #334155; display:none; z-index:2000; font-weight:bold; text-align:center; box-shadow: 0 5px 20px rgba(0,0,0,0.5); }
+        #block-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #020617; z-index: 9999; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; }
+        
+        #timer-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.98); z-index: 99999; display: none; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(10px); }
+        .timer-circle { width: 140px; height: 140px; border-radius: 50%; border: 6px solid var(--primary); display: flex; align-items: center; justify-content: center; font-size: 55px; font-weight: bold; color: white; margin-bottom: 20px; box-shadow: 0 0 40px rgba(99, 102, 241, 0.5); }
+        .timer-msg { font-size: 20px; font-weight: 800; color: white; text-align: center; line-height: 1.4; }
+        
+        /* Bonus UI */
+        .bonus-card { background: linear-gradient(135deg, #f59e0b, #d97706); padding: 15px; border-radius: 15px; text-align: center; margin-top: 15px; animation: popIn 0.5s ease; border: 1px solid rgba(255,255,255,0.2); }
+        .bonus-card h4 { margin: 0 0 5px 0; color: white; }
+        .btn-claim { background: white; color: #d97706; font-weight: bold; border: none; padding: 10px 20px; border-radius: 25px; margin-top: 10px; cursor: pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+        .bonus-list { margin-top: 20px; }
+        .bonus-item { background: rgba(255,255,255,0.05); padding: 12px; border-radius: 12px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; border: 1px solid rgba(255,255,255,0.05); }
+        .bonus-item.claimed { border-color: #10b981; background: rgba(16,185,129,0.1); }
+        .badge-claimed { background: #10b981; color: white; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: bold; }
+        @keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+        .pay-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 15px; }
+        .pay-opt { background: rgba(255,255,255,0.05); padding: 15px 10px; border-radius: 10px; text-align: center; border: 1px solid transparent; cursor: pointer; transition: 0.2s; display:flex; flex-direction:column; align-items:center; gap:5px; }
+        .pay-opt.active { border-color: #10b981; background: rgba(16,185,129,0.1); color: #10b981; }
+        .pay-opt img { width: 35px; height: 35px; border-radius: 50%; object-fit: cover; margin-bottom: 5px; }
+        .custom-input, .custom-select { width: 100%; padding: 14px; background: rgba(0,0,0,0.3); border: 1px solid #334155; border-radius: 12px; color: white; margin-bottom: 10px; font-size: 15px; box-sizing: border-box; }
+        .history-item { background: rgba(255,255,255,0.05); padding: 10px; border-radius: 10px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 5px; cursor: pointer; }
+        .btn-cancel { background: #ef4444; color: white; border: none; padding: 5px 10px; border-radius: 5px; font-size: 11px; font-weight: bold; cursor: pointer; margin-left: auto; }
+
+        #txModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 5000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+        .tx-card { background: #1e293b; padding: 25px; border-radius: 20px; width: 85%; max-width: 350px; border: 1px solid rgba(255,255,255,0.1); text-align: center; position: relative; }
+        .tx-close { position: absolute; top: 15px; right: 15px; color: #94a3b8; cursor: pointer; font-size: 20px; }
+        .tx-amount { font-size: 30px; font-weight: bold; color: white; margin: 10px 0; }
+        .tx-row { display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding: 10px 0; font-size: 13px; }
+    </style>
+</head>
+<body>
+
+    <div id="block-screen">
+        <div class="glass-card" style="border-color: var(--danger);">
+            <i class="fas fa-user-slash" style="font-size: 50px; color: var(--danger); margin-bottom: 20px;"></i>
+            <h2 style="margin-top:0;">Account Suspended</h2>
+            <p id="block-reason">Admin has suspended your account.</p>
+        </div>
+    </div>
+
+    <div id="timer-overlay">
+        <div class="timer-circle" id="overlayCount">20</div>
+        <div class="timer-text" style="color:white; font-weight:bold; font-size:20px; text-align:center; line-height:1.5;">Please Wait...<br><span style="font-size:14px; color:#94a3b8;">Don't close window</span></div>
+    </div>
+
+    <div id="txModal">
+        <div class="tx-card">
+            <i class="fas fa-times tx-close" onclick="document.getElementById('txModal').style.display='none'"></i>
+            <h3 style="margin:0; color:#94a3b8; font-size:14px;">Transaction Details</h3>
+            <div class="tx-amount" id="txAmt">৳0</div>
+            <div class="tx-row"><span style="color:#94a3b8">Status</span><span style="color:white; font-weight:bold;" id="txStatus">PENDING</span></div>
+            <div class="tx-row"><span style="color:#94a3b8">Method</span><span style="color:white; font-weight:bold;" id="txMethod">Bkash</span></div>
+            <div class="tx-row"><span style="color:#94a3b8">Account</span><span style="color:white; font-weight:bold;" id="txAcc">017...</span></div>
+            <div class="tx-row"><span style="color:#94a3b8">Date</span><span style="color:white; font-weight:bold;" id="txDate">...</span></div>
+            <div class="tx-row" id="txOpRow" style="display:none;"><span style="color:#94a3b8">Operator</span><span style="color:white; font-weight:bold;" id="txOp">...</span></div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <div class="con">
+        <div class="header-top">
+            <div style="display:flex; align-items:center; gap:12px;">
+                <div style="width:40px; height:40px; background:var(--success); border-radius:10px; display:flex; align-items:center; justify-content:center; font-weight:bold; color: white;" id="uAv">U</div>
+                <div>
+                    <h3 style="margin:0; font-size:16px;" id="uName">Guest</h3>
+                    <span style="font-size:12px; color:#94a3b8;" id="uId">ID: Loading...</span>
+                </div>
+            </div>
+            <div class="v-badge"><i class="fas fa-shield-alt"></i> Verified</div>
+        </div>
+
+        <!-- HOME -->
+        <div id="home" class="view active">
+            <div class="glass-card">
+                <div style="color:#94a3b8; font-size:13px;">Current Balance</div>
+                <div class="balance-amount">৳ <span id="balanceDisplay">0.00</span></div>
+            </div>
+            <div style="margin-top:10px;">
+                <div style="display:flex; justify-content:space-between; font-size:12px; color:#94a3b8;"><span>Daily Progress</span><span id="progText">0/0</span></div>
+                <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
+            </div>
+            <div id="adInstruction" style="text-align:center; font-size:13px; color:#94a3b8; margin-bottom:15px; padding:12px; border:1px dashed #334155; border-radius:10px;">Watch ads to earn money</div>
+            <button class="action-btn btn-primary" id="watchAdBtn" onclick="handleAdClick()">Watch Ad</button>
+            
+            <!-- BONUS SECTION -->
+            <div id="bonusSection"></div>
+            <div id="bonusList" class="bonus-list"></div>
+
+            <div class="social-grid">
+                <a href="#" id="tgBtn" target="_blank" class="social-card"><i class="fab fa-telegram" style="color:#229ED9;"></i><span>Channel</span><small>Join for updates</small></a>
+                <a href="#" id="ytBtn" target="_blank" class="social-card"><i class="fab fa-youtube" style="color:#FF0000;"></i><span>Tutorial</span><small>How to work</small></a>
+            </div>
+        </div>
+
+        <!-- WALLET -->
+        <div id="pay" class="view">
+            <div class="glass-card">
+                <h3>Withdrawal</h3>
+                <div id="refLock" class="ref-lock"></div>
+                <div id="loadingMethods" style="text-align:center; color:#94a3b8; font-size:12px;">Loading Methods...</div>
+                <div class="pay-grid" id="payGrid"></div>
+                <div id="operatorBox" style="display:none;"><select id="operator" class="custom-select"><option value="Grameenphone">Grameenphone</option><option value="Banglalink">Banglalink</option><option value="Robi">Robi</option><option value="Airtel">Airtel</option><option value="Teletalk">Teletalk</option></select></div>
+                <div id="feeInfo" class="fee-badge" style="font-size:11px; color:#94a3b8; text-align:center; margin-bottom:5px;"></div>
+                <div id="minDisplay" style="text-align:center; font-size:12px; color:#94a3b8; margin-bottom:8px;">Select a method</div>
+                <input type="number" id="wAmount" class="custom-input" placeholder="Amount (BDT)" oninput="calcTotal()">
+                <div id="totalDeduct" style="font-size:12px; color:white; margin-bottom:10px; text-align:right; font-weight:bold;">Total Deduct: ৳0.00</div>
+                <!-- CHANGED PLACEHOLDER -->
+                <input type="text" id="wAccount" class="custom-input" placeholder="Wallet Address / Mobile Number">
+                <div id="usdtConversion" style="display:none; text-align:right; font-size:12px; color:#10b981; margin-bottom:15px; font-weight:bold;">≈ 0.00 USDT</div>
+                <button class="action-btn btn-success" id="confirmWithdrawBtn" onclick="submitWithdraw()">Confirm Withdraw</button>
+            </div>
+            <div class="glass-card"><h4>History</h4><div id="historyList"></div></div>
+        </div>
+
+        <!-- TEAM -->
+        <div id="ref" class="view">
+            <div class="glass-card" style="text-align:center">
+                <h3>Refer & Earn</h3>
+                <p style="font-size:13px; color:#94a3b8;">Refer Bonus: <span id="refBonusText" style="color:white; font-weight:bold;">0 BDT</span></p>
+                <div id="refLink" style="background:rgba(0,0,0,0.3); padding:10px; border-radius:12px; font-size:11px; word-break:break-all; border:1px dashed #334155; color:#10b981;">Loading...</div>
+                <button class="action-btn btn-primary" onclick="copyRef()" style="margin-top:10px;">Copy Link</button>
+            </div>
+            <div class="glass-card"><h4>My Team</h4><div id="team"></div></div>
+        </div>
+    </div>
+
+    <div class="navbar">
+        <button class="nav-item active" onclick="switchView('home', this)"><i class="fas fa-home"></i><span>Home</span></button>
+        <button class="nav-item" onclick="switchView('pay', this)"><i class="fas fa-wallet"></i><span>Wallet</span></button>
+        <button class="nav-item" onclick="switchView('ref', this)"><i class="fas fa-users"></i><span>Team</span></button>
+    </div>
+
+    <script>
+        const firebaseConfig = { apiKey: "AIzaSyB1sRKtojHCEAtFVGBHPEpHWr3Qz4s72p0", databaseURL: "https://daily-task-6c410-default-rtdb.firebaseio.com", projectId: "daily-task-6c410" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const tg = window.Telegram.WebApp;
+
+        let state = { id: null, balance: 0, today: 0, refs: 0, taskRunning: false, waitingForClick: false, clickCheckTimer: null, lastBonus: 0 };
+        let SETTINGS = {};
+        let methods = []; let selectedMethod = null; let adClicked = false;
+
+        function init() {
+            try { tg.ready(); tg.expand(); } catch(e){}
+            state.id = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id.toString() : (localStorage.getItem('app_user_uid') || Math.floor(100000 + Math.random() * 900000).toString());
+            localStorage.setItem('app_user_uid', state.id);
+            const uName = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.first_name : 'Guest';
+            
+            // --- DEVICE LOCK CHECK ---
+            checkDeviceLock(uName);
+        }
+
+        // --- DEVICE LOCK LOGIC ---
+        function getDeviceFingerprint() {
+            // Create a basic unique hash from screen and user agent
+            const str = navigator.userAgent + screen.width + "x" + screen.height + (new Date().getTimezoneOffset());
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                const char = str.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash;
+            }
+            return Math.abs(hash).toString(16);
+        }
+
+        function checkDeviceLock(uName) {
+            const deviceId = getDeviceFingerprint();
+            
+            db.ref('device_locks/' + deviceId).once('value', snap => {
+                if(snap.exists()) {
+                    const ownerId = snap.val();
+                    if(ownerId !== state.id) {
+                        // DEVICE IS OWNED BY ANOTHER ACCOUNT
+                        document.getElementById('block-screen').style.display = 'flex';
+                        document.getElementById('block-reason').innerText = "Multiple Accounts Not Allowed on this Device!";
+                        return; // Stop loading
+                    }
+                } else {
+                    // FIRST TIME THIS DEVICE IS SEEN -> LOCK IT TO THIS USER
+                    db.ref('device_locks/' + deviceId).set(state.id);
+                }
+                
+                // If passed check, load UI
+                document.getElementById('uName').innerText = uName;
+                document.getElementById('uAv').innerText = uName[0].toUpperCase();
+                document.getElementById('uId').innerText = 'ID: ' + state.id;
+                syncUser(uName); loadSettings(); loadHistory(); loadTeam();
+                window.onblur = function() { if (state.taskRunning) { adClicked = true; if (state.waitingForClick) { state.waitingForClick = false; clearTimeout(state.clickCheckTimer); startOverlayCountdown(); } } };
+            });
+        }
+
+        function syncUser(n) {
+            db.ref('users/' + state.id).on('value', snap => {
+                const data = snap.val();
+                
+                // Get Today's Date String (Format: YYYY-MM-DD)
+                const todayStr = new Date().toISOString().split('T')[0];
+
+                if(data) {
+                    if(data.blocked) { 
+                        document.getElementById('block-screen').style.display='flex'; 
+                        if(data.blockReason) document.getElementById('block-reason').innerText=data.blockReason; 
+                        return; 
+                    }
+
+                    // --- RESET LOGIC ---
+                    // Check if date changed since last login
+                    if(data.lastDate !== todayStr) {
+                        db.ref('users/' + state.id).update({
+                            todayCount: 0,   // Reset Daily Tasks
+                            lastBonus: 0,    // Reset Bonus History (This clears the visual list)
+                            lastDate: todayStr // Update Date
+                        });
+                        return; // Wait for the update to reflect
+                    }
+                    // -------------------
+
+                    state.balance = data.balance || 0; 
+                    state.refs = data.referrals || 0; 
+                    state.today = data.todayCount || 0; 
+                    state.lastBonus = data.lastBonus || 0;
+                    updateUI();
+                } else {
+                    // Create New User
+                    db.ref('users/' + state.id).set({ 
+                        name: n, 
+                        balance: 0, 
+                        todayCount: 0, 
+                        lastBonus: 0, // Initialize Bonus History
+                        adViews: 0, 
+                        referrals: 0, 
+                        lastDate: todayStr, // Set Today's Date
+                        blocked: false 
+                    });
+                }
+            });
+        }
+
+        function loadSettings() {
+            db.ref('settings').on('value', snap => {
+                if(snap.exists()) {
+                    SETTINGS = snap.val();
+                    document.getElementById('refBonusText').innerText = (SETTINGS.refB || 0) + " BDT";
+                    if(SETTINGS.botUser) document.getElementById('refLink').innerText = `https://t.me/${SETTINGS.botUser}?start=ref_${state.id}`;
+                    if(SETTINGS.tgLink) document.getElementById('tgBtn').href = SETTINGS.tgLink;
+                    if(SETTINGS.ytLink) document.getElementById('ytBtn').href = SETTINGS.ytLink;
+                    
+                    if(SETTINGS.monetag_id && !document.getElementById('monetag-script')) {
+                        const script = document.createElement('script'); script.id = 'monetag-script'; script.src = '//libtl.com/sdk.js'; script.setAttribute('data-zone', SETTINGS.monetag_id); script.setAttribute('data-sdk', 'show_' + SETTINGS.monetag_id); document.head.appendChild(script);
+                    }
+                    updateUI();
+                }
+            });
+
+            db.ref('settings/methods').on('value', snap => {
+                const grid = document.getElementById('payGrid'); grid.innerHTML = ''; methods = [];
+                document.getElementById('loadingMethods').style.display = 'none';
+                if(snap.exists()){
+                    snap.forEach(c => {
+                        const m = { key: c.key, ...c.val() }; methods.push(m);
+                        const iconSrc = m.icon && m.icon.includes('http') ? m.icon : 'https://cdn-icons-png.flaticon.com/512/25/25228.png';
+                        grid.innerHTML += `<div class="pay-opt" onclick="selPay('${m.key}', this)"><img src="${iconSrc}" onerror="this.src='https://cdn-icons-png.flaticon.com/512/25/25228.png'"><span style="font-size:11px; font-weight:bold;">${m.name}</span></div>`;
+                    });
+                } else { document.getElementById('loadingMethods').style.display = 'block'; document.getElementById('loadingMethods').innerText = "No payment methods"; }
+            });
+        }
+
+        function updateUI() {
+            document.getElementById('balanceDisplay').innerText = (state.balance / 100).toFixed(2);
+            const limit = SETTINGS.adLimit || 100;
+            document.getElementById('progText').innerText = `${state.today}/${limit}`;
+            document.getElementById('progFill').style.width = (state.today / limit * 100) + '%';
+            
+            const isClick = ((state.today + 1) % 5 === 0);
+            const btn = document.getElementById('watchAdBtn');
+            const instr = document.getElementById('adInstruction');
+            if(isClick) { instr.innerText = "Click Ad and Wait 20s"; btn.className = "action-btn btn-warning"; btn.innerText = "Click Ad"; }
+            else { instr.innerText = "Watch Ad for 15s (Don't Click)"; btn.className = "action-btn btn-primary"; btn.innerText = "Watch Ad"; }
+
+            // BONUS LOGIC
+            const bonusSection = document.getElementById('bonusSection');
+            const bonusList = document.getElementById('bonusList');
+            bonusSection.innerHTML = '';
+            
+            // Show Claim Button
+            if (state.today > 0 && state.today % 5 === 0 && state.lastBonus !== state.today) {
+                const count = state.today / 5;
+                const suffix = (count === 1) ? 'st' : (count === 2) ? 'nd' : (count === 3) ? 'rd' : 'th';
+                bonusSection.innerHTML = `
+                    <div class="bonus-card">
+                        <h4>🎉 Bonus Available!</h4>
+                        <p style="font-size:12px; color:#e2e8f0;">Claim your ${count}${suffix} milestone bonus.</p>
+                        <button class="btn-claim" onclick="claimBonus()">CLAIM NOW</button>
+                    </div>`;
+            }
+
+            // Render Claimed List (History)
+            bonusList.innerHTML = '';
+            const totalBonuses = Math.floor(state.today / 5);
+            for(let i=1; i<=totalBonuses; i++) {
+                const isClaimed = (i * 5) <= state.lastBonus;
+                if(isClaimed) {
+                    const suffix = (i === 1) ? 'st' : (i === 2) ? 'nd' : (i === 3) ? 'rd' : 'th';
+                    bonusList.innerHTML += `
+                    <div class="bonus-item claimed">
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <i class="fas fa-gift" style="color:#10b981;"></i>
+                            <span>${i}${suffix} Bonus</span>
+                        </div>
+                        <span class="badge-claimed">CLAIMED</span>
+                    </div>`;
+                }
+            }
+
+            const req = SETTINGS.minInv || 0;
+            const refLock = document.getElementById('refLock');
+            if (state.refs < req) { refLock.style.display = 'flex'; refLock.className = 'ref-lock'; refLock.innerHTML = `<i class="fas fa-lock"></i> <span>Invite ${req - state.refs} more to unlock</span>`; document.getElementById('confirmWithdrawBtn').disabled = true; }
+            else { refLock.style.display = (req > 0) ? 'flex' : 'none'; refLock.className = 'ref-lock ok'; refLock.innerHTML = `<i class="fas fa-check-circle"></i> <span>Requirement Met</span>`; document.getElementById('confirmWithdrawBtn').disabled = false; }
+        }
+
+        // --- WITHDRAWAL LOGIC ---
+        function selPay(key, el) {
+            selectedMethod = methods.find(m => m.key === key);
+            document.querySelectorAll('.pay-opt').forEach(e => e.classList.remove('active'));
+            el.classList.add('active');
+            
+            // Show operator if recharge
+            const opBox = document.getElementById('operatorBox');
+            if (selectedMethod.type === 'recharge') opBox.style.display = 'block';
+            else opBox.style.display = 'none';
+
+            // Show fee info
+            const fee = selectedMethod.fee || 0;
+            document.getElementById('feeInfo').innerText = `Fee: ৳${fee} | Min: ৳${selectedMethod.min}`;
+            document.getElementById('minDisplay').innerText = `Min: ৳${selectedMethod.min} - Max: ৳${selectedMethod.max}`;
+            
+            // Dynamic Placeholder for USDT TRC20 vs Local
+            const accInput = document.getElementById('wAccount');
+            if(selectedMethod.name.toLowerCase().includes('usdt')) {
+                accInput.placeholder = "Enter TRC20 Address";
+            } else {
+                accInput.placeholder = "Enter Mobile Number";
+            }
+            
+            calcTotal();
+        }
+
+        function calcTotal() {
+            const amount = parseInt(document.getElementById('wAmount').value) || 0;
+            if(!selectedMethod) return;
+            const fee = selectedMethod.fee || 0;
+            const total = amount + fee;
+            document.getElementById('totalDeduct').innerText = `Total Deduct: ৳${total}`;
+            
+            // USDT Conversion display if name contains USDT
+            if(selectedMethod.name.toUpperCase().includes('USDT')) {
+                const rate = SETTINGS.usdtRate || 120;
+                document.getElementById('usdtConversion').style.display = 'block';
+                document.getElementById('usdtConversion').innerText = `≈ ${(amount / rate).toFixed(2)} USDT`;
+            } else {
+                document.getElementById('usdtConversion').style.display = 'none';
+            }
+        }
+
+        function sendTgAlert(msg) {
+            if(!SETTINGS.tgBotToken || !SETTINGS.adminChatId) return;
+            const url = `https://api.telegram.org/bot${SETTINGS.tgBotToken}/sendMessage?chat_id=${SETTINGS.adminChatId}&text=${encodeURIComponent(msg)}&parse_mode=HTML`;
+            fetch(url).catch(e => console.log(e));
+        }
+
+        function submitWithdraw() {
+            if(!selectedMethod) return showToast("Select a payment method!", true);
+            const amount = parseInt(document.getElementById('wAmount').value);
+            const account = document.getElementById('wAccount').value;
+            const op = document.getElementById('operator').value;
+            
+            if(!amount || amount < selectedMethod.min || amount > selectedMethod.max) return showToast(`Invalid Amount (Min: ${selectedMethod.min})`, true);
+            if(!account || account.length < 5) return showToast("Invalid Account/Address", true);
+
+            const fee = selectedMethod.fee || 0;
+            const totalDeduct = (amount + fee) * 100; // Convert to Poisha
+
+            if(state.balance < totalDeduct) return showToast("Insufficient Balance!", true);
+
+            const wData = {
+                userId: state.id,
+                amount: amount,
+                fee: fee,
+                method: selectedMethod.name,
+                account: account,
+                operator: selectedMethod.type === 'recharge' ? op : null,
+                status: 'pending',
+                date: Date.now()
+            };
+
+            // Deduct balance and save request
+            db.ref('users/' + state.id).transaction(u => {
+                if(u && u.balance >= totalDeduct) {
+                    u.balance -= totalDeduct;
+                    return u;
+                }
+                return; // Abort if balance changed
+            }, (err, committed) => {
+                if(committed) {
+                    db.ref('withdrawals').push(wData);
+                    showToast("Withdrawal Requested!");
+                    document.getElementById('wAmount').value = '';
+                    document.getElementById('wAccount').value = '';
+                    
+                    // ADMIN NOTIFICATION
+                    const msg = `🔔 <b>New Withdrawal</b>\n\n👤 User: ${document.getElementById('uName').innerText} (${state.id})\n💰 Amount: ৳${amount}\n💳 Method: ${selectedMethod.name}\n📱 Account: ${account}`;
+                    sendTgAlert(msg);
+                    
+                    updateUI();
+                } else {
+                    showToast("Balance Error!", true);
+                }
+            });
+        }
+
+        // --- CANCEL WITHDRAW LOGIC ---
+        function cancelWithdraw(key, amount, fee) {
+            if(!confirm("Are you sure you want to cancel this request? Money will be refunded.")) return;
+            
+            // 1. Check if still pending then update to canceled
+            db.ref('withdrawals/' + key).transaction(data => {
+                if (data && data.status === 'pending') {
+                    data.status = 'canceled';
+                    return data;
+                }
+                return; // Abort if already handled
+            }, (err, committed, snap) => {
+                if(committed) {
+                    // 2. Refund balance
+                    const totalRefund = (amount + fee) * 100; // Convert to Poisha
+                    db.ref('users/' + state.id).transaction(u => {
+                        if(u) {
+                            u.balance = (u.balance || 0) + totalRefund;
+                        }
+                        return u;
+                    });
+                    showToast("Cancelled! Refunded to Balance.");
+                    
+                    // ADMIN NOTIFICATION
+                    const msg = `🚫 <b>Withdrawal Canceled</b>\n\n👤 User: ${document.getElementById('uName').innerText} (${state.id})\n💰 Refunded: ৳${amount + fee}`;
+                    sendTgAlert(msg);
+                } else {
+                    showToast("Cannot cancel. Already processed.", true);
+                }
+            });
+        }
+
+        // --- BONUS CLAIM ---
+        function claimBonus() {
+            if (!SETTINGS.adsterra_link) return showToast("Bonus link not set!", true);
+            window.open(SETTINGS.adsterra_link, '_blank');
+            
+            const overlay = document.getElementById('timer-overlay');
+            const overlayCount = document.getElementById('overlayCount');
+            const msg = document.querySelector('.timer-msg');
+            if(msg) msg.innerText = "Checking Bonus...";
+            
+            overlay.style.display = 'flex';
+            let timeLeft = 10;
+            overlayCount.innerText = timeLeft;
+            
+            const timer = setInterval(() => {
+                timeLeft--;
+                overlayCount.innerText = timeLeft;
+                if (timeLeft <= 0) {
+                    clearInterval(timer);
+                    overlay.style.display = 'none';
+                    
+                    db.ref('users/' + state.id).transaction(u => {
+                        if (u) {
+                            u.balance = (u.balance || 0) + (SETTINGS.bonus_amt || 50);
+                            u.lastBonus = state.today;
+                        }
+                        return u;
+                    });
+                    showToast(`Bonus Added Successfully!`);
+                }
+            }, 1000);
+        }
+
+        // --- AD HANDLING (MONETAG ONLY) ---
+        function handleAdClick() {
+            if(state.taskRunning) return;
+            const btn = document.getElementById('watchAdBtn');
+            btn.innerText = "Loading Ads..."; btn.disabled = true;
+            
+            // Only Monetag Logic
+            const zoneId = SETTINGS.monetag_id;
+            const adFunction = window['show_' + zoneId];
+            if(typeof adFunction === 'function') {
+                adFunction();
+            }
+
+            const isClick = ((state.today + 1) % 5 === 0);
+            startTaskLogic(isClick);
+        }
+
+        function startTaskLogic(isClick) { if(isClick) runClickTask(); else runViewTask(); }
+        function runViewTask() {
+            state.taskRunning = true; adClicked = false;
+            let time = 15; const btn = document.getElementById('watchAdBtn');
+            const timer = setInterval(() => {
+                btn.innerText = `Wait ${time}s`;
+                if(adClicked) { clearInterval(timer); state.taskRunning = false; btn.disabled = false; btn.innerText = "Watch Ad"; showToast("Invalid Click!", true); return; }
+                if(time <= 0) { clearInterval(timer); state.taskRunning = false; btn.disabled = false; addReward(SETTINGS.adReward || 10); showToast("Reward Added!"); btn.innerText = "Watch Ad"; updateUI(); }
+                time--;
+            }, 1000);
+        }
+        function runClickTask() {
+            state.taskRunning = true; state.waitingForClick = true; adClicked = false;
+            const btn = document.getElementById('watchAdBtn'); btn.innerText = "Click Ad Now!"; btn.disabled = false;
+            state.clickCheckTimer = setTimeout(() => { if (state.waitingForClick) { state.taskRunning = false; state.waitingForClick = false; showToast("You didn't click!", true); updateUI(); } }, 20000);
+        }
+        function startOverlayCountdown() {
+            document.getElementById('timer-overlay').style.display='flex';
+            let t = 20; let target = Date.now() + (t * 1000);
+            const timer = setInterval(() => {
+                let remaining = Math.round((target - Date.now()) / 1000);
+                if (remaining <= 0) { clearInterval(timer); document.getElementById('timer-overlay').style.display='none'; state.taskRunning = false; addReward(SETTINGS.clickBonus || 15); showToast("Bonus Added!"); updateUI(); }
+                else document.getElementById('overlayCount').innerText = remaining;
+            }, 500);
+        }
+        function addReward(amt) { db.ref('users/' + state.id).transaction(u => { if(u) { u.balance = (u.balance || 0) + amt; u.todayCount = (u.todayCount || 0) + 1; u.adViews = (u.adViews || 0) + 1; } return u; }); }
+        
+        function loadHistory() {
+            db.ref('withdrawals').orderByChild('userId').equalTo(state.id).on('value', snap => {
+                const list = document.getElementById('historyList'); list.innerHTML = '';
+                const arr = [];
+                snap.forEach(c => arr.push({ key: c.key, ...c.val() }));
+                
+                // Show Empty Message if no history
+                if(arr.length === 0) {
+                    list.innerHTML = '<div style="text-align:center; color:#94a3b8; font-size:12px; padding:10px;">No transaction history found.</div>';
+                    return;
+                }
+
+                arr.reverse().forEach(d => {
+                    // Logic for real-time colors including REJECTED
+                    let color = '#f59e0b'; // Default Pending
+                    if(d.status === 'paid') color = '#10b981';
+                    else if(d.status === 'rejected') color = '#ef4444'; // Red for rejected
+                    else if(d.status === 'canceled') color = '#94a3b8'; // Grey for canceled
+
+                    // Logic for Cancel Button (Only if Pending)
+                    let actionHtml = '';
+                    if(d.status === 'pending') {
+                        actionHtml = `<button class="btn-cancel" onclick="event.stopPropagation(); cancelWithdraw('${d.key}', ${d.amount}, ${d.fee})">Cancel</button>`;
+                    }
+
+                    list.innerHTML += `
+                    <div class="history-item" style="border-left:4px solid ${color}" onclick="showDetails(${d.amount}, '${d.method}', '${d.account}', '${d.status}', ${d.date}, '${d.operator||''}')">
+                        <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+                            <span style="font-weight:bold; color:#fff;">৳${d.amount} <small style="color:#94a3b8">(${d.method})</small></span>
+                            <span style="color:${color}; font-size:11px; font-weight:bold;">${d.status.toUpperCase()}</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:5px;">
+                            <div style="font-size:10px; color:#94a3b8;">${d.account}</div>
+                            ${actionHtml}
+                        </div>
+                    </div>`;
+                });
+            });
+        }
+
+        function loadTeam() { db.ref('referrals/'+state.id).on('value', snap => { const list = document.getElementById('team'); list.innerHTML = ''; snap.forEach(c => { list.innerHTML += `<div class="history-item" style="border-left:4px solid #10b981; flex-direction:row; justify-content:space-between; align-items:center;"><span>${c.val().name}</span></div>`; }); }); }
+        function switchView(v, el) { document.querySelectorAll('.view').forEach(e => e.classList.remove('active')); document.getElementById(v).classList.add('active'); if(el) { document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active')); el.classList.add('active'); } }
+        function showToast(m, err=false) { const t = document.getElementById('toast'); t.innerText = m; t.style.display='block'; t.style.color = err?'#ef4444':'#10b981'; setTimeout(() => t.style.display='none', 3000); }
+        function showDetails(amount, method, account, status, date, operator) { document.getElementById('txAmt').innerText = '৳' + amount; document.getElementById('txStatus').innerText = status.toUpperCase(); document.getElementById('txStatus').style.color = (status==='paid'?'#10b981':(status==='pending'?'#f59e0b':(status==='rejected'?'#ef4444':'#94a3b8'))); document.getElementById('txMethod').innerText = method; document.getElementById('txAcc').innerText = account; document.getElementById('txDate').innerText = new Date(date).toLocaleString(); if(operator) { document.getElementById('txOpRow').style.display = 'flex'; document.getElementById('txOp').innerText = operator; } else { document.getElementById('txOpRow').style.display = 'none'; } document.getElementById('txModal').style.display = 'flex'; }
+        function copyRef() { navigator.clipboard.writeText(document.getElementById('refLink').innerText); showToast("Copied!"); }
+        init();
+    </script>
+</body>
+</html>
