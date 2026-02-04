@@ -157,7 +157,6 @@
                 <div id="minDisplay" style="text-align:center; font-size:12px; color:#94a3b8; margin-bottom:8px;">Select a method</div>
                 <input type="number" id="wAmount" class="custom-input" placeholder="Amount (BDT)" oninput="calcTotal()">
                 <div id="totalDeduct" style="font-size:12px; color:white; margin-bottom:10px; text-align:right; font-weight:bold;">Total Deduct: ৳0.00</div>
-                <!-- CHANGED PLACEHOLDER -->
                 <input type="text" id="wAccount" class="custom-input" placeholder="Wallet Address / Mobile Number">
                 <div id="usdtConversion" style="display:none; text-align:right; font-size:12px; color:#10b981; margin-bottom:15px; font-weight:bold;">≈ 0.00 USDT</div>
                 <button class="action-btn btn-success" id="confirmWithdrawBtn" onclick="submitWithdraw()">Confirm Withdraw</button>
@@ -195,17 +194,15 @@
 
         function init() {
             try { tg.ready(); tg.expand(); } catch(e){}
+            // Force ID to String to avoid Type Mismatch
             state.id = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id.toString() : (localStorage.getItem('app_user_uid') || Math.floor(100000 + Math.random() * 900000).toString());
             localStorage.setItem('app_user_uid', state.id);
             const uName = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.first_name : 'Guest';
             
-            // --- DEVICE LOCK CHECK ---
             checkDeviceLock(uName);
         }
 
-        // --- DEVICE LOCK LOGIC ---
         function getDeviceFingerprint() {
-            // Create a basic unique hash from screen and user agent
             const str = navigator.userAgent + screen.width + "x" + screen.height + (new Date().getTimezoneOffset());
             let hash = 0;
             for (let i = 0; i < str.length; i++) {
@@ -218,22 +215,18 @@
 
         function checkDeviceLock(uName) {
             const deviceId = getDeviceFingerprint();
-            
             db.ref('device_locks/' + deviceId).once('value', snap => {
                 if(snap.exists()) {
                     const ownerId = snap.val();
                     if(ownerId !== state.id) {
-                        // DEVICE IS OWNED BY ANOTHER ACCOUNT
                         document.getElementById('block-screen').style.display = 'flex';
                         document.getElementById('block-reason').innerText = "Multiple Accounts Not Allowed on this Device!";
-                        return; // Stop loading
+                        return;
                     }
                 } else {
-                    // FIRST TIME THIS DEVICE IS SEEN -> LOCK IT TO THIS USER
                     db.ref('device_locks/' + deviceId).set(state.id);
                 }
                 
-                // If passed check, load UI
                 document.getElementById('uName').innerText = uName;
                 document.getElementById('uAv').innerText = uName[0].toUpperCase();
                 document.getElementById('uId').innerText = 'ID: ' + state.id;
@@ -245,8 +238,6 @@
         function syncUser(n) {
             db.ref('users/' + state.id).on('value', snap => {
                 const data = snap.val();
-                
-                // Get Today's Date String (Format: YYYY-MM-DD)
                 const todayStr = new Date().toISOString().split('T')[0];
 
                 if(data) {
@@ -256,17 +247,10 @@
                         return; 
                     }
 
-                    // --- RESET LOGIC ---
-                    // Check if date changed since last login
                     if(data.lastDate !== todayStr) {
-                        db.ref('users/' + state.id).update({
-                            todayCount: 0,   // Reset Daily Tasks
-                            lastBonus: 0,    // Reset Bonus History (This clears the visual list)
-                            lastDate: todayStr // Update Date
-                        });
-                        return; // Wait for the update to reflect
+                        db.ref('users/' + state.id).update({ todayCount: 0, lastBonus: 0, lastDate: todayStr });
+                        return;
                     }
-                    // -------------------
 
                     state.balance = data.balance || 0; 
                     state.refs = data.referrals || 0; 
@@ -274,17 +258,7 @@
                     state.lastBonus = data.lastBonus || 0;
                     updateUI();
                 } else {
-                    // Create New User
-                    db.ref('users/' + state.id).set({ 
-                        name: n, 
-                        balance: 0, 
-                        todayCount: 0, 
-                        lastBonus: 0, // Initialize Bonus History
-                        adViews: 0, 
-                        referrals: 0, 
-                        lastDate: todayStr, // Set Today's Date
-                        blocked: false 
-                    });
+                    db.ref('users/' + state.id).set({ name: n, balance: 0, todayCount: 0, lastBonus: 0, adViews: 0, referrals: 0, lastDate: todayStr, blocked: false });
                 }
             });
         }
@@ -330,38 +304,23 @@
             if(isClick) { instr.innerText = "Click Ad and Wait 20s"; btn.className = "action-btn btn-warning"; btn.innerText = "Click Ad"; }
             else { instr.innerText = "Watch Ad for 15s (Don't Click)"; btn.className = "action-btn btn-primary"; btn.innerText = "Watch Ad"; }
 
-            // BONUS LOGIC
             const bonusSection = document.getElementById('bonusSection');
             const bonusList = document.getElementById('bonusList');
             bonusSection.innerHTML = '';
             
-            // Show Claim Button
             if (state.today > 0 && state.today % 5 === 0 && state.lastBonus !== state.today) {
                 const count = state.today / 5;
                 const suffix = (count === 1) ? 'st' : (count === 2) ? 'nd' : (count === 3) ? 'rd' : 'th';
-                bonusSection.innerHTML = `
-                    <div class="bonus-card">
-                        <h4>🎉 Bonus Available!</h4>
-                        <p style="font-size:12px; color:#e2e8f0;">Claim your ${count}${suffix} milestone bonus.</p>
-                        <button class="btn-claim" onclick="claimBonus()">CLAIM NOW</button>
-                    </div>`;
+                bonusSection.innerHTML = `<div class="bonus-card"><h4>🎉 Bonus Available!</h4><p style="font-size:12px; color:#e2e8f0;">Claim your ${count}${suffix} milestone bonus.</p><button class="btn-claim" onclick="claimBonus()">CLAIM NOW</button></div>`;
             }
 
-            // Render Claimed List (History)
             bonusList.innerHTML = '';
             const totalBonuses = Math.floor(state.today / 5);
             for(let i=1; i<=totalBonuses; i++) {
                 const isClaimed = (i * 5) <= state.lastBonus;
                 if(isClaimed) {
                     const suffix = (i === 1) ? 'st' : (i === 2) ? 'nd' : (i === 3) ? 'rd' : 'th';
-                    bonusList.innerHTML += `
-                    <div class="bonus-item claimed">
-                        <div style="display:flex; align-items:center; gap:8px;">
-                            <i class="fas fa-gift" style="color:#10b981;"></i>
-                            <span>${i}${suffix} Bonus</span>
-                        </div>
-                        <span class="badge-claimed">CLAIMED</span>
-                    </div>`;
+                    bonusList.innerHTML += `<div class="bonus-item claimed"><div style="display:flex; align-items:center; gap:8px;"><i class="fas fa-gift" style="color:#10b981;"></i><span>${i}${suffix} Bonus</span></div><span class="badge-claimed">CLAIMED</span></div>`;
                 }
             }
 
@@ -371,30 +330,25 @@
             else { refLock.style.display = (req > 0) ? 'flex' : 'none'; refLock.className = 'ref-lock ok'; refLock.innerHTML = `<i class="fas fa-check-circle"></i> <span>Requirement Met</span>`; document.getElementById('confirmWithdrawBtn').disabled = false; }
         }
 
-        // --- WITHDRAWAL LOGIC ---
         function selPay(key, el) {
             selectedMethod = methods.find(m => m.key === key);
             document.querySelectorAll('.pay-opt').forEach(e => e.classList.remove('active'));
             el.classList.add('active');
             
-            // Show operator if recharge
             const opBox = document.getElementById('operatorBox');
             if (selectedMethod.type === 'recharge') opBox.style.display = 'block';
             else opBox.style.display = 'none';
 
-            // Show fee info
             const fee = selectedMethod.fee || 0;
             document.getElementById('feeInfo').innerText = `Fee: ৳${fee} | Min: ৳${selectedMethod.min}`;
             document.getElementById('minDisplay').innerText = `Min: ৳${selectedMethod.min} - Max: ৳${selectedMethod.max}`;
             
-            // Dynamic Placeholder for USDT TRC20 vs Local
             const accInput = document.getElementById('wAccount');
             if(selectedMethod.name.toLowerCase().includes('usdt')) {
                 accInput.placeholder = "Enter TRC20 Address";
             } else {
                 accInput.placeholder = "Enter Mobile Number";
             }
-            
             calcTotal();
         }
 
@@ -405,7 +359,6 @@
             const total = amount + fee;
             document.getElementById('totalDeduct').innerText = `Total Deduct: ৳${total}`;
             
-            // USDT Conversion display if name contains USDT
             if(selectedMethod.name.toUpperCase().includes('USDT')) {
                 const rate = SETTINGS.usdtRate || 120;
                 document.getElementById('usdtConversion').style.display = 'block';
@@ -431,12 +384,13 @@
             if(!account || account.length < 5) return showToast("Invalid Account/Address", true);
 
             const fee = selectedMethod.fee || 0;
-            const totalDeduct = (amount + fee) * 100; // Convert to Poisha
+            const totalDeduct = (amount + fee) * 100;
 
             if(state.balance < totalDeduct) return showToast("Insufficient Balance!", true);
 
+            // FORCE ID TO STRING
             const wData = {
-                userId: state.id,
+                userId: state.id.toString(),
                 amount: amount,
                 fee: fee,
                 method: selectedMethod.name,
@@ -446,13 +400,12 @@
                 date: Date.now()
             };
 
-            // Deduct balance and save request
             db.ref('users/' + state.id).transaction(u => {
                 if(u && u.balance >= totalDeduct) {
                     u.balance -= totalDeduct;
                     return u;
                 }
-                return; // Abort if balance changed
+                return;
             }, (err, committed) => {
                 if(committed) {
                     db.ref('withdrawals').push(wData);
@@ -460,41 +413,34 @@
                     document.getElementById('wAmount').value = '';
                     document.getElementById('wAccount').value = '';
                     
-                    // ADMIN NOTIFICATION
                     const msg = `🔔 <b>New Withdrawal</b>\n\n👤 User: ${document.getElementById('uName').innerText} (${state.id})\n💰 Amount: ৳${amount}\n💳 Method: ${selectedMethod.name}\n📱 Account: ${account}`;
                     sendTgAlert(msg);
                     
-                    updateUI();
+                    // Manually refresh UI after 1 sec to ensure list updates
+                    setTimeout(() => { updateUI(); }, 1000);
                 } else {
                     showToast("Balance Error!", true);
                 }
             });
         }
 
-        // --- CANCEL WITHDRAW LOGIC ---
         function cancelWithdraw(key, amount, fee) {
             if(!confirm("Are you sure you want to cancel this request? Money will be refunded.")) return;
             
-            // 1. Check if still pending then update to canceled
             db.ref('withdrawals/' + key).transaction(data => {
                 if (data && data.status === 'pending') {
                     data.status = 'canceled';
                     return data;
                 }
-                return; // Abort if already handled
+                return;
             }, (err, committed, snap) => {
                 if(committed) {
-                    // 2. Refund balance
-                    const totalRefund = (amount + fee) * 100; // Convert to Poisha
+                    const totalRefund = (amount + fee) * 100;
                     db.ref('users/' + state.id).transaction(u => {
-                        if(u) {
-                            u.balance = (u.balance || 0) + totalRefund;
-                        }
+                        if(u) { u.balance = (u.balance || 0) + totalRefund; }
                         return u;
                     });
                     showToast("Cancelled! Refunded to Balance.");
-                    
-                    // ADMIN NOTIFICATION
                     const msg = `🚫 <b>Withdrawal Canceled</b>\n\n👤 User: ${document.getElementById('uName').innerText} (${state.id})\n💰 Refunded: ৳${amount + fee}`;
                     sendTgAlert(msg);
                 } else {
@@ -503,32 +449,79 @@
             });
         }
 
-        // --- BONUS CLAIM ---
+        // --- HISTORY LOAD: Client-Side Filter Fallback to ensure data shows ---
+        function loadHistory() {
+            // Fetch last 100 withdrawals globally and filter by ID in JS
+            // This fixes any Indexing/Type mismatch issues
+            db.ref('withdrawals').limitToLast(100).on('value', snap => {
+                const list = document.getElementById('historyList'); 
+                list.innerHTML = ''; 
+
+                const arr = [];
+                snap.forEach(c => {
+                    const val = c.val();
+                    // LOOSE COMPARISON (==) handles String/Number mismatch
+                    if(val.userId == state.id) {
+                        arr.push({ key: c.key, ...val });
+                    }
+                });
+
+                if(arr.length === 0) {
+                    list.innerHTML = '<div style="text-align:center; color:#94a3b8; font-size:12px; padding:10px;">No transaction history found.</div>';
+                    return;
+                }
+
+                arr.reverse().forEach(d => {
+                    let color = '#f59e0b';
+                    if(d.status === 'paid') color = '#10b981';
+                    else if(d.status === 'rejected') color = '#ef4444';
+                    else if(d.status === 'canceled') color = '#94a3b8';
+
+                    let actionHtml = '';
+                    if(d.status === 'pending') {
+                        actionHtml = `<button class="btn-cancel" onclick="event.stopPropagation(); cancelWithdraw('${d.key}', ${d.amount}, ${d.fee})">Cancel</button>`;
+                    }
+
+                    list.innerHTML += `
+                    <div class="history-item" style="border-left:4px solid ${color}" onclick="showDetails(${d.amount}, '${d.method}', '${d.account}', '${d.status}', ${d.date}, '${d.operator||''}')">
+                        <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+                            <span style="font-weight:bold; color:#fff;">৳${d.amount} <small style="color:#94a3b8">(${d.method})</small></span>
+                            <span style="color:${color}; font-size:11px; font-weight:bold;">${d.status.toUpperCase()}</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:5px;">
+                            <div style="font-size:10px; color:#94a3b8;">${d.account}</div>
+                            ${actionHtml}
+                        </div>
+                    </div>`;
+                });
+            });
+        }
+
+        function loadTeam() { db.ref('referrals/'+state.id).on('value', snap => { const list = document.getElementById('team'); list.innerHTML = ''; snap.forEach(c => { list.innerHTML += `<div class="history-item" style="border-left:4px solid #10b981; flex-direction:row; justify-content:space-between; align-items:center;"><span>${c.val().name}</span></div>`; }); }); }
+        function switchView(v, el) { document.querySelectorAll('.view').forEach(e => e.classList.remove('active')); document.getElementById(v).classList.add('active'); if(el) { document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active')); el.classList.add('active'); } }
+        function showToast(m, err=false) { const t = document.getElementById('toast'); t.innerText = m; t.style.display='block'; t.style.color = err?'#ef4444':'#10b981'; setTimeout(() => t.style.display='none', 3000); }
+        function showDetails(amount, method, account, status, date, operator) { document.getElementById('txAmt').innerText = '৳' + amount; document.getElementById('txStatus').innerText = status.toUpperCase(); document.getElementById('txStatus').style.color = (status==='paid'?'#10b981':(status==='pending'?'#f59e0b':(status==='rejected'?'#ef4444':'#94a3b8'))); document.getElementById('txMethod').innerText = method; document.getElementById('txAcc').innerText = account; document.getElementById('txDate').innerText = new Date(date).toLocaleString(); if(operator) { document.getElementById('txOpRow').style.display = 'flex'; document.getElementById('txOp').innerText = operator; } else { document.getElementById('txOpRow').style.display = 'none'; } document.getElementById('txModal').style.display = 'flex'; }
+        function copyRef() { navigator.clipboard.writeText(document.getElementById('refLink').innerText); showToast("Copied!"); }
+        
+        // --- ADS ---
         function claimBonus() {
             if (!SETTINGS.adsterra_link) return showToast("Bonus link not set!", true);
             window.open(SETTINGS.adsterra_link, '_blank');
-            
             const overlay = document.getElementById('timer-overlay');
             const overlayCount = document.getElementById('overlayCount');
             const msg = document.querySelector('.timer-msg');
             if(msg) msg.innerText = "Checking Bonus...";
-            
             overlay.style.display = 'flex';
             let timeLeft = 10;
             overlayCount.innerText = timeLeft;
-            
             const timer = setInterval(() => {
                 timeLeft--;
                 overlayCount.innerText = timeLeft;
                 if (timeLeft <= 0) {
                     clearInterval(timer);
                     overlay.style.display = 'none';
-                    
                     db.ref('users/' + state.id).transaction(u => {
-                        if (u) {
-                            u.balance = (u.balance || 0) + (SETTINGS.bonus_amt || 50);
-                            u.lastBonus = state.today;
-                        }
+                        if (u) { u.balance = (u.balance || 0) + (SETTINGS.bonus_amt || 50); u.lastBonus = state.today; }
                         return u;
                     });
                     showToast(`Bonus Added Successfully!`);
@@ -536,19 +529,13 @@
             }, 1000);
         }
 
-        // --- AD HANDLING (MONETAG ONLY) ---
         function handleAdClick() {
             if(state.taskRunning) return;
             const btn = document.getElementById('watchAdBtn');
             btn.innerText = "Loading Ads..."; btn.disabled = true;
-            
-            // Only Monetag Logic
             const zoneId = SETTINGS.monetag_id;
             const adFunction = window['show_' + zoneId];
-            if(typeof adFunction === 'function') {
-                adFunction();
-            }
-
+            if(typeof adFunction === 'function') { adFunction(); }
             const isClick = ((state.today + 1) % 5 === 0);
             startTaskLogic(isClick);
         }
@@ -580,56 +567,6 @@
         }
         function addReward(amt) { db.ref('users/' + state.id).transaction(u => { if(u) { u.balance = (u.balance || 0) + amt; u.todayCount = (u.todayCount || 0) + 1; u.adViews = (u.adViews || 0) + 1; } return u; }); }
         
-        function loadHistory() {
-            // FIXED: Real-time update with reverse sorting
-            db.ref('withdrawals').orderByChild('userId').equalTo(state.id).on('value', snap => {
-                const list = document.getElementById('historyList'); 
-                list.innerHTML = ''; // Clear current list
-
-                const arr = [];
-                snap.forEach(c => {
-                    arr.push({ key: c.key, ...c.val() });
-                });
-
-                if(arr.length === 0) {
-                    list.innerHTML = '<div style="text-align:center; color:#94a3b8; font-size:12px; padding:10px;">No transaction history found.</div>';
-                    return;
-                }
-
-                // Reverse array to show latest first
-                arr.reverse().forEach(d => {
-                    // Color Logic
-                    let color = '#f59e0b'; // Pending
-                    if(d.status === 'paid') color = '#10b981';
-                    else if(d.status === 'rejected') color = '#ef4444';
-                    else if(d.status === 'canceled') color = '#94a3b8';
-
-                    // Cancel Button Logic
-                    let actionHtml = '';
-                    if(d.status === 'pending') {
-                        actionHtml = `<button class="btn-cancel" onclick="event.stopPropagation(); cancelWithdraw('${d.key}', ${d.amount}, ${d.fee})">Cancel</button>`;
-                    }
-
-                    list.innerHTML += `
-                    <div class="history-item" style="border-left:4px solid ${color}" onclick="showDetails(${d.amount}, '${d.method}', '${d.account}', '${d.status}', ${d.date}, '${d.operator||''}')">
-                        <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
-                            <span style="font-weight:bold; color:#fff;">৳${d.amount} <small style="color:#94a3b8">(${d.method})</small></span>
-                            <span style="color:${color}; font-size:11px; font-weight:bold;">${d.status.toUpperCase()}</span>
-                        </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:5px;">
-                            <div style="font-size:10px; color:#94a3b8;">${d.account}</div>
-                            ${actionHtml}
-                        </div>
-                    </div>`;
-                });
-            });
-        }
-
-        function loadTeam() { db.ref('referrals/'+state.id).on('value', snap => { const list = document.getElementById('team'); list.innerHTML = ''; snap.forEach(c => { list.innerHTML += `<div class="history-item" style="border-left:4px solid #10b981; flex-direction:row; justify-content:space-between; align-items:center;"><span>${c.val().name}</span></div>`; }); }); }
-        function switchView(v, el) { document.querySelectorAll('.view').forEach(e => e.classList.remove('active')); document.getElementById(v).classList.add('active'); if(el) { document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active')); el.classList.add('active'); } }
-        function showToast(m, err=false) { const t = document.getElementById('toast'); t.innerText = m; t.style.display='block'; t.style.color = err?'#ef4444':'#10b981'; setTimeout(() => t.style.display='none', 3000); }
-        function showDetails(amount, method, account, status, date, operator) { document.getElementById('txAmt').innerText = '৳' + amount; document.getElementById('txStatus').innerText = status.toUpperCase(); document.getElementById('txStatus').style.color = (status==='paid'?'#10b981':(status==='pending'?'#f59e0b':(status==='rejected'?'#ef4444':'#94a3b8'))); document.getElementById('txMethod').innerText = method; document.getElementById('txAcc').innerText = account; document.getElementById('txDate').innerText = new Date(date).toLocaleString(); if(operator) { document.getElementById('txOpRow').style.display = 'flex'; document.getElementById('txOp').innerText = operator; } else { document.getElementById('txOpRow').style.display = 'none'; } document.getElementById('txModal').style.display = 'flex'; }
-        function copyRef() { navigator.clipboard.writeText(document.getElementById('refLink').innerText); showToast("Copied!"); }
         init();
     </script>
 </body>
