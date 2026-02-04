@@ -581,25 +581,30 @@
         function addReward(amt) { db.ref('users/' + state.id).transaction(u => { if(u) { u.balance = (u.balance || 0) + amt; u.todayCount = (u.todayCount || 0) + 1; u.adViews = (u.adViews || 0) + 1; } return u; }); }
         
         function loadHistory() {
+            // FIXED: Real-time update with reverse sorting
             db.ref('withdrawals').orderByChild('userId').equalTo(state.id).on('value', snap => {
-                const list = document.getElementById('historyList'); list.innerHTML = '';
+                const list = document.getElementById('historyList'); 
+                list.innerHTML = ''; // Clear current list
+
                 const arr = [];
-                snap.forEach(c => arr.push({ key: c.key, ...c.val() }));
-                
-                // Show Empty Message if no history
+                snap.forEach(c => {
+                    arr.push({ key: c.key, ...c.val() });
+                });
+
                 if(arr.length === 0) {
                     list.innerHTML = '<div style="text-align:center; color:#94a3b8; font-size:12px; padding:10px;">No transaction history found.</div>';
                     return;
                 }
 
+                // Reverse array to show latest first
                 arr.reverse().forEach(d => {
-                    // Logic for real-time colors including REJECTED
-                    let color = '#f59e0b'; // Default Pending
+                    // Color Logic
+                    let color = '#f59e0b'; // Pending
                     if(d.status === 'paid') color = '#10b981';
-                    else if(d.status === 'rejected') color = '#ef4444'; // Red for rejected
-                    else if(d.status === 'canceled') color = '#94a3b8'; // Grey for canceled
+                    else if(d.status === 'rejected') color = '#ef4444';
+                    else if(d.status === 'canceled') color = '#94a3b8';
 
-                    // Logic for Cancel Button (Only if Pending)
+                    // Cancel Button Logic
                     let actionHtml = '';
                     if(d.status === 'pending') {
                         actionHtml = `<button class="btn-cancel" onclick="event.stopPropagation(); cancelWithdraw('${d.key}', ${d.amount}, ${d.fee})">Cancel</button>`;
